@@ -1,4 +1,5 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
+import { supabase } from './lib/supabase'
 import Board from './components/Board'
 import type { CellState, PreviewCell } from './components/Board'
 import ShipPanel from './components/ShipPanel'
@@ -110,6 +111,20 @@ export default function App() {
   const allPlaced = SHIPS.every(s => (placedCounts[s.id] ?? 0) >= s.total)
   const anyPlaced = placedShips.length > 0
   const selectedShip = SHIPS.find(s => s.id === selectedId) ?? null
+
+  // Test połączenia z Supabase — odpali się raz przy montowaniu
+  const connectionTested = useRef(false)
+  useEffect(() => {
+    if (connectionTested.current) return
+    connectionTested.current = true
+    supabase
+      .from('games')
+      .select('*', { count: 'exact', head: true })
+      .then(({ count, error }) => {
+        if (error) console.error('[Supabase] Błąd połączenia:', error.message)
+        else console.log(`[Supabase] Połączono. Liczba rekordów w games: ${count}`)
+      })
+  }, [])
 
   // Podgląd aktualnej pozycji kursora
   const previewCells: PreviewCell[] =

@@ -1,10 +1,11 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect } from 'react'
 import { supabase } from './lib/supabase'
 import Board from './components/Board'
 import type { CellState, PreviewCell } from './components/Board'
 import ShipPanel from './components/ShipPanel'
 import { SHIPS } from './components/ShipPanel'
 import Lobby from './components/Lobby'
+import GameView from './components/GameView'
 
 // Postawiony egzemplarz statku — śledzimy komórki, żeby móc go usunąć
 type PlacedShip = {
@@ -98,8 +99,9 @@ function randomizeShips(): { cells: CellState[][]; placedShips: PlacedShip[] } {
 
 export default function App() {
   const [gameId, setGameId] = useState<string | null>(null)
-  // pendingGameId — gracz 1 stworzył grę, czeka na dołączenie gracza 2
   const [pendingGameId, setPendingGameId] = useState<string | null>(null)
+  const [gamePhase, setGamePhase] = useState<'placing' | 'playing'>('placing')
+  const [myBoardCells, setMyBoardCells] = useState<CellState[][] | null>(null)
 
   // Nasłuchuje na zmianę statusu gry (waiting → placing) po stronie gracza 1
   useEffect(() => {
@@ -109,12 +111,7 @@ export default function App() {
       .channel(`game-status:${pendingGameId}`)
       .on(
         'postgres_changes',
-        {
-          event: 'UPDATE',
-          schema: 'public',
-          table: 'games',
-          filter: `id=eq.${pendingGameId}`,
-        },
+        { event: 'UPDATE', schema: 'public', table: 'games', filter: `id=eq.${pendingGameId}` },
         payload => {
           if (payload.new.status === 'placing') setGameId(pendingGameId)
         }
@@ -134,10 +131,22 @@ export default function App() {
     )
   }
 
-  return <Game gameId={gameId} />
+  if (gamePhase === 'playing' && myBoardCells) {
+    return <GameView gameId={gameId} myBoardCells={myBoardCells} />
+  }
+
+  return (
+    <Game
+      gameId={gameId}
+      onPlacingDone={cells => {
+        setMyBoardCells(cells)
+        setGamePhase('playing')
+      }}
+    />
+  )
 }
 
-function Game({ gameId: _gameId }: { gameId: string }) {
+function Game({ gameId, onPlacingDone }: { gameId: string; onPlacingDone: (cells: CellState[][]) => void }) {
   const [cells, setCells] = useState<CellState[][]>(emptyGrid)
   const [placedShips, setPlacedShips] = useState<PlacedShip[]>([])
   const [selectedId, setSelectedId] = useState<string | null>(null)
@@ -153,20 +162,6 @@ function Game({ gameId: _gameId }: { gameId: string }) {
   const allPlaced = SHIPS.every(s => (placedCounts[s.id] ?? 0) >= s.total)
   const anyPlaced = placedShips.length > 0
   const selectedShip = SHIPS.find(s => s.id === selectedId) ?? null
-
-  // Test połączenia z Supabase — odpali się raz przy montowaniu
-  const connectionTested = useRef(false)
-  useEffect(() => {
-    if (connectionTested.current) return
-    connectionTested.current = true
-    supabase
-      .from('games')
-      .select('*', { count: 'exact', head: true })
-      .then(({ count, error }) => {
-        if (error) console.error('[Supabase] Błąd połączenia:', error.message)
-        else console.log(`[Supabase] Połączono. Liczba rekordów w games: ${count}`)
-      })
-  }, [])
 
   // Podgląd aktualnej pozycji kursora
   const previewCells: PreviewCell[] =
@@ -269,9 +264,39 @@ function Game({ gameId: _gameId }: { gameId: string }) {
     setHoverCell(null)
   }
 
-  function handleReady() {
-    // TODO: przejście do fazy walki
-    alert('Gotowe! Czas na bitwę.')
+  async function handleReady() {
+    const playerId = sessionStorage.getItem('player-id')!
+
+    // Zapisz planszę do bazy
+    const { error } = await supabase
+      .from('boards')
+      .upsert(
+        { game_id: gameId, player_id: playerId, ships: placedShips, ready: true },
+        { onConflict: 'game_id,player_id' }
+      )
+
+    if (error) { console.error('Błąd zapisu planszy:', error.message); return }
+
+    // Sprawdź czy przeciwnik też jest gotowy — jeśli tak, start gry
+    const { data: game } = await supabase
+      .from('games').select('player1_id, player2_id').eq('id', gameId).single()
+
+    const opponentId = game?.player1_id === playerId ? game?.player2_id : game?.player1_id
+
+    if (opponentId) {
+      const { data: oppBoard } = await supabase
+        .from('boards').select('ready').eq('game_id', gameId).eq('player_id', opponentId).single()
+
+      if (oppBoard?.ready) {
+        // Obaj gotowi — player1 zaczyna
+        await supabase
+          .from('games')
+          .update({ status: 'playing', current_turn: game!.player1_id })
+          .eq('id', gameId)
+      }
+    }
+
+    onPlacingDone(cells)
   }
 
   return (

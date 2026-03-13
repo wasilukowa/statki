@@ -23,7 +23,7 @@ function cellClass(state: CellState, preview: PreviewCell | undefined, highlight
   switch (state) {
     case 'ship': return 'bg-gray-500'
     case 'hit':  return 'bg-red-600'
-    case 'miss': return 'bg-white'
+    case 'miss': return 'bg-slate-100'
     default:     return 'bg-blue-600'
   }
 }
@@ -77,11 +77,11 @@ export default function Board({
                   hover:scale-105
                   transition-all duration-75
                   flex items-center justify-center
-                  text-gray-700 font-bold text-sm
+                  text-gray-500 font-bold text-xl leading-none
                   ${highlight ? 'cursor-grab' : 'cursor-pointer'}
                 `}
               >
-                {state === 'miss' && '×'}
+                {state === 'miss' && '·'}
               </button>
             )
           })}

@@ -4,6 +4,7 @@ import Board from './components/Board'
 import type { CellState, PreviewCell } from './components/Board'
 import ShipPanel from './components/ShipPanel'
 import { SHIPS } from './components/ShipPanel'
+import Lobby from './components/Lobby'
 
 // Postawiony egzemplarz statku — śledzimy komórki, żeby móc go usunąć
 type PlacedShip = {
@@ -96,6 +97,47 @@ function randomizeShips(): { cells: CellState[][]; placedShips: PlacedShip[] } {
 }
 
 export default function App() {
+  const [gameId, setGameId] = useState<string | null>(null)
+  // pendingGameId — gracz 1 stworzył grę, czeka na dołączenie gracza 2
+  const [pendingGameId, setPendingGameId] = useState<string | null>(null)
+
+  // Nasłuchuje na zmianę statusu gry (waiting → placing) po stronie gracza 1
+  useEffect(() => {
+    if (!pendingGameId) return
+
+    const channel = supabase
+      .channel(`game-status:${pendingGameId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'games',
+          filter: `id=eq.${pendingGameId}`,
+        },
+        payload => {
+          if (payload.new.status === 'placing') setGameId(pendingGameId)
+        }
+      )
+      .subscribe()
+
+    return () => { supabase.removeChannel(channel) }
+  }, [pendingGameId])
+
+  if (!gameId) {
+    return (
+      <Lobby
+        pendingGameId={pendingGameId}
+        onGameCreated={setPendingGameId}
+        onGameJoined={setGameId}
+      />
+    )
+  }
+
+  return <Game gameId={gameId} />
+}
+
+function Game({ gameId: _gameId }: { gameId: string }) {
   const [cells, setCells] = useState<CellState[][]>(emptyGrid)
   const [placedShips, setPlacedShips] = useState<PlacedShip[]>([])
   const [selectedId, setSelectedId] = useState<string | null>(null)

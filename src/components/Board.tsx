@@ -1,5 +1,5 @@
 // Typy stanu pola planszy
-export type CellState = 'empty' | 'ship' | 'hit' | 'miss'
+export type CellState = 'empty' | 'ship' | 'hit' | 'miss' | 'sunk'
 
 export type PreviewCell = { row: number; col: number; valid: boolean }
 
@@ -24,6 +24,7 @@ function cellClass(state: CellState, preview: PreviewCell | undefined, highlight
     case 'ship': return 'bg-gray-500'
     case 'hit':  return 'bg-red-600'
     case 'miss': return 'bg-slate-100'
+    case 'sunk': return 'bg-orange-700'
     default:     return 'bg-blue-600'
   }
 }
@@ -82,6 +83,7 @@ export default function Board({
                 `}
               >
                 {state === 'miss' && '·'}
+                {state === 'sunk' && '✕'}
               </button>
             )
           })}

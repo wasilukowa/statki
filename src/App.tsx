@@ -102,6 +102,7 @@ export default function App() {
   const [pendingGameId, setPendingGameId] = useState<string | null>(null)
   const [gamePhase, setGamePhase] = useState<'placing' | 'playing'>('placing')
   const [myBoardCells, setMyBoardCells] = useState<CellState[][] | null>(null)
+  const [myPlacedShips, setMyPlacedShips] = useState<PlacedShip[]>([])
 
   // Nasłuchuje na zmianę statusu gry (waiting → placing) po stronie gracza 1
   useEffect(() => {
@@ -131,22 +132,31 @@ export default function App() {
     )
   }
 
+  function handleNewGame() {
+    setGameId(null)
+    setPendingGameId(null)
+    setGamePhase('placing')
+    setMyBoardCells(null)
+    setMyPlacedShips([])
+  }
+
   if (gamePhase === 'playing' && myBoardCells) {
-    return <GameView gameId={gameId} myBoardCells={myBoardCells} />
+    return <GameView gameId={gameId} myBoardCells={myBoardCells} myPlacedShips={myPlacedShips} onNewGame={handleNewGame} />
   }
 
   return (
     <Game
       gameId={gameId}
-      onPlacingDone={cells => {
+      onPlacingDone={(cells, ships) => {
         setMyBoardCells(cells)
+        setMyPlacedShips(ships)
         setGamePhase('playing')
       }}
     />
   )
 }
 
-function Game({ gameId, onPlacingDone }: { gameId: string; onPlacingDone: (cells: CellState[][]) => void }) {
+function Game({ gameId, onPlacingDone }: { gameId: string; onPlacingDone: (cells: CellState[][], ships: PlacedShip[]) => void }) {
   const [cells, setCells] = useState<CellState[][]>(emptyGrid)
   const [placedShips, setPlacedShips] = useState<PlacedShip[]>([])
   const [selectedId, setSelectedId] = useState<string | null>(null)
@@ -296,7 +306,7 @@ function Game({ gameId, onPlacingDone }: { gameId: string; onPlacingDone: (cells
       }
     }
 
-    onPlacingDone(cells)
+    onPlacingDone(cells, placedShips)
   }
 
   return (

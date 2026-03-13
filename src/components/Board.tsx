@@ -1,15 +1,25 @@
 // Typy stanu pola planszy
 export type CellState = 'empty' | 'ship' | 'hit' | 'miss'
 
+export type PreviewCell = { row: number; col: number; valid: boolean }
+
 type BoardProps = {
   cells: CellState[][]
   onCellClick: (row: number, col: number) => void
+  onCellHover?: (row: number, col: number) => void
+  onCellLeave?: () => void
+  previewCells?: PreviewCell[]
+  highlightCells?: { row: number; col: number }[]
 }
 
 const ROWS = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J']
 const COLS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
 
-function cellClass(state: CellState): string {
+function cellClass(state: CellState, preview: PreviewCell | undefined, highlight: boolean): string {
+  if (preview) {
+    return preview.valid ? 'bg-green-500 opacity-80' : 'bg-red-500 opacity-70'
+  }
+  if (highlight && state === 'ship') return 'bg-gray-300'
   switch (state) {
     case 'ship': return 'bg-gray-500'
     case 'hit':  return 'bg-red-600'
@@ -18,9 +28,21 @@ function cellClass(state: CellState): string {
   }
 }
 
-export default function Board({ cells, onCellClick }: BoardProps) {
+export default function Board({
+  cells,
+  onCellClick,
+  onCellHover,
+  onCellLeave,
+  previewCells = [],
+  highlightCells = [],
+}: BoardProps) {
+  const previewMap = new Map<string, PreviewCell>()
+  for (const p of previewCells) previewMap.set(`${p.row},${p.col}`, p)
+
+  const highlightSet = new Set(highlightCells.map(c => `${c.row},${c.col}`))
+
   return (
-    <div className="inline-block">
+    <div className="inline-block" onMouseLeave={onCellLeave}>
       {/* Nagłówek kolumn */}
       <div className="flex ml-8">
         {COLS.map(col => (
@@ -41,18 +63,22 @@ export default function Board({ cells, onCellClick }: BoardProps) {
           {/* Pola wiersza */}
           {COLS.map((_, col) => {
             const state = cells[row][col]
+            const preview = previewMap.get(`${row},${col}`)
+            const highlight = highlightSet.has(`${row},${col}`)
             return (
               <button
                 key={col}
                 onClick={() => onCellClick(row, col)}
+                onMouseEnter={() => onCellHover?.(row, col)}
                 className={`
                   w-9 h-9 border border-blue-900
-                  ${cellClass(state)}
-                  hover:brightness-125 hover:scale-105
-                  transition-all duration-100
+                  ${cellClass(state, preview, highlight)}
+                  ${!preview && !highlight ? 'hover:brightness-125' : ''}
+                  hover:scale-105
+                  transition-all duration-75
                   flex items-center justify-center
                   text-gray-700 font-bold text-sm
-                  cursor-pointer
+                  ${highlight ? 'cursor-grab' : 'cursor-pointer'}
                 `}
               >
                 {state === 'miss' && '×'}

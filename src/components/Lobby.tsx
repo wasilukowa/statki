@@ -1,15 +1,5 @@
 import { useState } from 'react'
-import { supabase } from '../lib/supabase'
-
-// Zwraca stały UUID gracza dla tej sesji (generuje raz i zapisuje)
-function getOrCreatePlayerId(): string {
-  const key = 'player-id'
-  const existing = sessionStorage.getItem(key)
-  if (existing) return existing
-  const id = crypto.randomUUID()
-  sessionStorage.setItem(key, id)
-  return id
-}
+import { supabase, ensureAnonymousSession } from '../lib/supabase'
 
 type Props = {
   pendingGameId: string | null
@@ -37,7 +27,7 @@ export default function Lobby({ pendingGameId, onGameCreated, onGameJoined }: Pr
     setError(null)
     setPhase('creating')
 
-    const playerId = getOrCreatePlayerId()
+    const playerId = await ensureAnonymousSession()
     const code = generateCode()
     const { data: game, error: gameError } = await supabase
       .from('games')
@@ -65,7 +55,7 @@ export default function Lobby({ pendingGameId, onGameCreated, onGameJoined }: Pr
     setError(null)
     setPhase('joining')
 
-    const playerId = getOrCreatePlayerId()
+    const playerId = await ensureAnonymousSession()
 
     const { data: game, error: findError } = await supabase
       .from('games')

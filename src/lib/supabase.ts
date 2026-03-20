@@ -8,3 +8,17 @@ if (!supabaseUrl || !supabaseAnonKey) {
 }
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey)
+
+// Zapewnia anonimową sesję Supabase Auth — przy pierwszym wywołaniu loguje anonimowo,
+// przy kolejnych odczytuje istniejącą sesję. Zwraca UUID gracza (= auth.uid()).
+export async function ensureAnonymousSession(): Promise<string> {
+  const { data: { session } } = await supabase.auth.getSession()
+  if (session?.user) {
+    sessionStorage.setItem('player-id', session.user.id)
+    return session.user.id
+  }
+  const { data, error } = await supabase.auth.signInAnonymously()
+  if (error || !data.user) throw new Error('Nie udało się zalogować anonimowo')
+  sessionStorage.setItem('player-id', data.user.id)
+  return data.user.id
+}

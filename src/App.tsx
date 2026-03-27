@@ -140,13 +140,28 @@ export default function App() {
     setMyPlacedShips([])
   }
 
+  function handleGameReset() {
+    setGamePhase('placing')
+    setMyBoardCells(null)
+    setMyPlacedShips([])
+  }
+
   if (gamePhase === 'playing' && myBoardCells) {
-    return <GameView gameId={gameId} myBoardCells={myBoardCells} myPlacedShips={myPlacedShips} onNewGame={handleNewGame} />
+    return (
+      <GameView
+        gameId={gameId}
+        myBoardCells={myBoardCells}
+        myPlacedShips={myPlacedShips}
+        onNewGame={handleNewGame}
+        onGameReset={handleGameReset}
+      />
+    )
   }
 
   return (
     <Game
       gameId={gameId}
+      onLeave={handleNewGame}
       onPlacingDone={(cells, ships) => {
         setMyBoardCells(cells)
         setMyPlacedShips(ships)
@@ -156,12 +171,29 @@ export default function App() {
   )
 }
 
-function Game({ gameId, onPlacingDone }: { gameId: string; onPlacingDone: (cells: CellState[][], ships: PlacedShip[]) => void }) {
+function Game({ gameId, onLeave, onPlacingDone }: {
+  gameId: string
+  onLeave: () => void
+  onPlacingDone: (cells: CellState[][], ships: PlacedShip[]) => void
+}) {
   const [cells, setCells] = useState<CellState[][]>(emptyGrid)
   const [placedShips, setPlacedShips] = useState<PlacedShip[]>([])
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [orientation, setOrientation] = useState<'H' | 'V'>('H')
   const [hoverCell, setHoverCell] = useState<{ row: number; col: number } | null>(null)
+  const [showLeaveConfirm, setShowLeaveConfirm] = useState(false)
+  const [opponentLeft, setOpponentLeft] = useState(false)
+
+  useEffect(() => {
+    const channel = supabase
+      .channel(`game-placing:${gameId}`)
+      .on('postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'games', filter: `id=eq.${gameId}` },
+        payload => { if (payload.new.status === 'abandoned') setOpponentLeft(true) }
+      )
+      .subscribe()
+    return () => { supabase.removeChannel(channel) }
+  }, [gameId])
 
   // Licznik postawionych statków — pochodna placedShips
   const placedCounts = placedShips.reduce<Record<string, number>>((acc, s) => {
@@ -310,10 +342,22 @@ function Game({ gameId, onPlacingDone }: { gameId: string; onPlacingDone: (cells
   }
 
   return (
-    <div className="min-h-screen bg-gray-900 flex flex-col items-center justify-center gap-8">
-      <h1 className="text-4xl font-bold text-white">Statki</h1>
+    <div className="min-h-screen bg-gray-900 flex flex-col items-center justify-start md:justify-center gap-6 md:gap-8 p-4 md:p-6">
 
-      <div className="flex gap-12 items-start">
+      {/* Przycisk powrotu do lobby */}
+      <div className="self-start">
+        <button
+          onClick={() => setShowLeaveConfirm(true)}
+          className="flex items-center gap-1.5 text-gray-400 hover:text-white text-sm font-medium transition-colors cursor-pointer"
+        >
+          <span>←</span>
+          <span>LOBBY</span>
+        </button>
+      </div>
+
+      <h1 className="text-2xl md:text-4xl font-bold text-white">Statki</h1>
+
+      <div className="flex flex-col md:flex-row gap-6 md:gap-12 items-center md:items-start">
         <Board
           cells={cells}
           onCellClick={handleCellClick}
@@ -344,6 +388,48 @@ function Game({ gameId, onPlacingDone }: { gameId: string; onPlacingDone: (cells
           <p className="text-red-400 text-sm">Nie można tu postawić statku</p>
         )}
       </div>
+
+      {/* Przeciwnik opuścił pokój */}
+      {opponentLeft && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
+          <div className="bg-gray-800 border border-gray-700 rounded-2xl p-6 max-w-sm w-full flex flex-col gap-4 items-center">
+            <p className="text-white font-bold text-lg text-center">Przeciwnik opuścił pokój</p>
+            <button
+              onClick={onLeave}
+              className="px-6 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-bold transition-colors cursor-pointer"
+            >
+              Wróć do lobby
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Potwierdzenie wyjścia do lobby */}
+      {showLeaveConfirm && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
+          <div className="bg-gray-800 border border-gray-700 rounded-2xl p-6 max-w-sm w-full flex flex-col gap-4">
+            <h3 className="text-white font-bold text-lg">Wyjść do lobby?</h3>
+            <p className="text-gray-400 text-sm">Opuszczasz grę — utracisz postępy.</p>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setShowLeaveConfirm(false)}
+                className="flex-1 py-2 rounded-lg border border-gray-600 text-gray-300 hover:border-gray-400 transition-colors cursor-pointer"
+              >
+                Anuluj
+              </button>
+              <button
+                onClick={async () => {
+                  await supabase.from('games').update({ status: 'abandoned' }).eq('id', gameId)
+                  onLeave()
+                }}
+                className="flex-1 py-2 rounded-lg bg-red-600 hover:bg-red-500 text-white font-bold transition-colors cursor-pointer"
+              >
+                Wyjdź
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

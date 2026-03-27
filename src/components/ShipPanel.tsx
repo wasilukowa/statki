@@ -64,7 +64,7 @@ export default function ShipPanel({
   onReady,
 }: ShipPanelProps) {
   return (
-    <div className="flex flex-col gap-4 w-52">
+    <div className="flex flex-col gap-4 w-full md:w-52">
       <h2 className="text-lg font-bold text-white">Twoja flota</h2>
 
       <div className="flex flex-col gap-2">

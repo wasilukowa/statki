@@ -45,9 +45,9 @@ export default function Board({
   return (
     <div className="inline-block" onMouseLeave={onCellLeave}>
       {/* Nagłówek kolumn */}
-      <div className="flex ml-8">
+      <div className="flex ml-7 md:ml-8">
         {COLS.map(col => (
-          <div key={col} className="w-9 h-8 flex items-center justify-center text-sm font-semibold text-gray-300">
+          <div key={col} className="w-7 h-7 md:w-9 md:h-8 flex items-center justify-center text-xs md:text-sm font-semibold text-gray-300">
             {col}
           </div>
         ))}
@@ -57,7 +57,7 @@ export default function Board({
       {ROWS.map((rowLabel, row) => (
         <div key={rowLabel} className="flex">
           {/* Etykieta wiersza */}
-          <div className="w-8 h-9 flex items-center justify-center text-sm font-semibold text-gray-300">
+          <div className="w-7 h-7 md:w-8 md:h-9 flex items-center justify-center text-xs md:text-sm font-semibold text-gray-300">
             {rowLabel}
           </div>
 
@@ -72,13 +72,13 @@ export default function Board({
                 onClick={() => onCellClick(row, col)}
                 onMouseEnter={() => onCellHover?.(row, col)}
                 className={`
-                  w-9 h-9 border border-blue-900
+                  w-7 h-7 md:w-9 md:h-9 border border-blue-900
                   ${cellClass(state, preview, highlight)}
                   ${!preview && !highlight ? 'hover:brightness-125' : ''}
                   hover:scale-105
                   transition-all duration-75
                   flex items-center justify-center
-                  text-gray-500 font-bold text-xl leading-none
+                  text-gray-500 font-bold text-sm md:text-xl leading-none
                   ${highlight ? 'cursor-grab' : 'cursor-pointer'}
                 `}
               >
